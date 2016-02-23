@@ -8,6 +8,7 @@
 # Changelog
 #
 # V 0.10 2016-02-23 - initial beta version
+# V 0.11 2016-02-23 - fixed commandref formating
 ############################################## 
 
 package main;
