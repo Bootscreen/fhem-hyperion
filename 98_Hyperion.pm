@@ -284,30 +284,30 @@ sub Hyperion_Attr(@)
   </ul>
   <br>
   <a name="Hyperion_set"></a>
-  <p><b>Set <required> [optional] </b></p>
+  <p><b>Set &lt;required&gt; [optional] </b></p>
   <ul>
     <li>
-      <b>clear</b>
+      <a name="clear">clear</a><br>
       clear all colors and effects
     </li>
     <li>
-      <b>color <RRGGBB> [duration] [priority]</b>
+      <a name="color">color &lt;RRGGBB&gt; [duration] [priority]</a><br>
       send Color in RGB Hex Format with optional duration and priority
     </li>
     <li>
-      <b>color_g</b>
+      <a name="color_g">color_g</a><br>
       send Color in RGB Hex Format with the colorpicker
     </li>
     <li>
-      <b>effect <effect> [duration] [priority]</b>
+      <a name="effect">effect &lt;effect&gt; [duration] [priority]</a><br>
       send effect (replace Blanks with Underscore, look at 'get <name> effectList') with optional duration and priority
     </li>
     <li>
-      <b>effect_g</b>
+      <a name="effect_g">effect_g</a><br>
       send effect with the dropdown list
     </li>
     <li>
-      <b>loadEffects</b>
+      <a name="loadEffects">loadEffects</a><br>
       if effect_g has no dropdown you can manualy load the dropdown from the effects attribute
     </li>
   </ul>  
@@ -316,7 +316,7 @@ sub Hyperion_Attr(@)
   <p><b>Get</b></p>
   <ul>    
     <li>
-      <b>effectList</b>
+      <a name="effectList">effectList</a><br>
       get a List of all effects from the Hyperion Server and save it as the Attribute effects
     </li>
   </ul>
@@ -353,30 +353,30 @@ sub Hyperion_Attr(@)
   </ul>
   <br>
   <a name="Hyperion_set"></a>
-  <p><b>Set <required> [optional] </b></p>
+  <p><b>Set &lt;required&gt; [optional] </b></p>
   <ul>
     <li>
-      <b>clear</b>
+      <a name="clear">clear</a><br>
       löscht alle Farben und Effekte
     </li>
     <li>
-      <b>color <RRGGBB> [Dauer] [Priorität]</b>
+      <a name="color">color &lt;RRGGBB&gt; [Dauer] [Priorität]</a><br>
       sendet die Farbe in RGB Hex Format mit optionaler Dauer und Priorität
     </li>
     <li>
-      <b>color_g</b>
+      <a name="color_g">color_g</a><br>
       sendet die Farbe in RGB Hex Format aus dem Colorpicker
     </li>
     <li>
-      <b>effect <effect> [Dauer] [Priorität]</b>
-      startet den Effekt (Leerzeichen müssen durch Unterstriche ersetzt werden, siehe dazu 'get <name> effectList') mit optionaler Dauer und Priorität
+      <a name="effect">effect &lt;effect&gt; [Dauer] [Priorität]</a><br>
+      startet den Effekt (Leerzeichen müssen durch Unterstriche ersetzt werden, siehe dazu 'get &lt;name&gt; effectList') mit optionaler Dauer und Priorität
     </li>
     <li>
-      <b>effect_g</b>
+      <a name="effect_g">effect_g</a><br>
       startet den Effekt aus der Dropdown Liste
     </li>
     <li>
-      <b>loadEffects</b>
+      <a name="loadEffects">loadEffects</a><br>
       Lädt die Effekte aus dem Attribut effects in die Dropdown Liste für effect_g
     </li>
   </ul>  
@@ -385,7 +385,7 @@ sub Hyperion_Attr(@)
   <p><b>Get</b></p>
   <ul>    
     <li>
-      <b>effectList</b>
+      <a name="effectList">effectList</a><br>
       holt eine Liste von Effekten vom Hyperion Server und speichert diese im Attribut effects
     </li>
   </ul>
