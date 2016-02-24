@@ -1,4 +1,4 @@
-##############################################
+#####################################################################################
 # $Id: 
 #
 # Usage
@@ -7,9 +7,15 @@
 #
 # Changelog
 #
-# V 0.10 2016-02-23 - initial beta version
-# V 0.11 2016-02-23 - fixed commandref formating
-############################################## 
+# V 0.10 2016-02-23  -  initial beta version
+# V 0.11 2016-02-23  -  fixed commandref formating
+# V 0.20 2016-02-24  -  fixed effect_g not loaded after reload
+#                       changed attribute effects, no underscore required anymore
+#                       added error handling for unsupported commands
+#                       optimized some code
+#                       removed duplicated and unnecessary code
+#
+#####################################################################################
 
 package main;
 
@@ -28,7 +34,6 @@ sub Hyperion_Initialize($)
     my ($hash) = @_;
 
     $hash->{DefFn}      = 'Hyperion_Define';
-    $hash->{UndefFn}    = 'Hyperion_Undef';
     $hash->{SetFn}      = 'Hyperion_Set';
     $hash->{GetFn}      = 'Hyperion_Get';
     $hash->{AttrFn}     = 'Hyperion_Attr';
@@ -45,7 +50,7 @@ sub Hyperion_Define($$)
     my ($hash, $def) = @_;
     my @param = split('[ \t]+', $def);
     
-    if(int(@param) < 3)
+    if(int(@param) != 4)
 	{
         return "too few parameters: define <name> Hyperion <IP> <PORT>";
     }
@@ -53,20 +58,6 @@ sub Hyperion_Define($$)
     $hash->{IP} = $param[2];
     $hash->{PORT} = $param[3];
     
-	my $effectList = AttrVal($hash->{NAME}, "effects", "noArg");
-	
-	if(length($effectList) > 0)
-	{
-		$Hyperion_sets{'effect_g'} = $effectList;
-	}
-	
-    return undef;
-}
-
-sub Hyperion_Undef($$)
-{
-    my ($hash, $arg) = @_; 
-    # nothing to do
     return undef;
 }
 
@@ -81,25 +72,19 @@ sub Hyperion_Get($@)
 	
 	my $remote_ip = $hash->{IP};
 	my $remote_port = $hash->{PORT};
-	my ($socket,$client_socket);
+	my $socket;
 	my $data = "";
-	
-	# if(!defined($Hyperion_gets{$command}))
-	# {
-		# my @cList = keys %Hyperion_gets;
-		# return "Unknown argument $command, choose one of " . join(" ", @cList);
-	# }
-	
+	my $decoded_json = "";
+    
 	if($command ne "effectList")
 	{
-		my @cList = keys %Hyperion_gets;
-		return "Unknown argument $command, choose one of " . join(" ", @cList);
+		return "Unknown argument $command for $name, choose one of " . join(", ", sort keys %Hyperion_gets);
 	}
 	
 	$socket = new IO::Socket::INET (
-	PeerHost => $remote_ip,
-	PeerPort => $remote_port,
-	Proto => 'tcp',
+        PeerHost => $remote_ip,
+        PeerPort => $remote_port,
+        Proto => 'tcp',
 	); 
 
 	if (!$socket) { 
@@ -109,28 +94,13 @@ sub Hyperion_Get($@)
 		return undef;
 	}
 	
-	$hash->{last_command} = "{\"command\":\"serverinfo\"}\n";
+	$hash->{last_command} = "{\"command\":\"serverinfo\"}";
 	$socket->send("{\"command\":\"serverinfo\"}\n");
 	$data = <$socket>;
-	
 	$socket->close();
-    my $decoded_json = JSON->new->decode($data);
-	my $attribut = "";
-	for (@{ $decoded_json->{info}->{effects} })
-	{
-		if(length($attribut) == 0)
-		{
-			$attribut = $_->{name};
-		}
-		else
-		{
-			$attribut = $attribut . "," . $_->{name};
-		}
-		Log3 $name, 4, "$name: Effect: $_->{name}";
-	}
-	
-	$attribut =~ s/ /_/g;
-	$attr{$name}{"effects"} = $attribut;
+    $decoded_json = JSON->new->decode($data);
+	$attr{$name}{"effects"} = join(",", map { "$_->{name}"} @{ $decoded_json->{info}->{effects}});
+    
 	return undef;
 }
 
@@ -146,62 +116,41 @@ sub Hyperion_Set($@)
 	my $command = shift @param;
 	my $value = shift @param;
 	my $duration = AttrVal($name, "duration", "");
-	
 	if ($count >= 4)
 	{
 		$duration = shift @param;
 	}
 	if(length($duration) > 0)
 	{
-		
 		$duration = ",\"duration\":".$duration."000";
 	}
+    
 	my $priority = AttrVal($name, "priority", "500");
 	if ($count >= 5)
 	{
 		$priority = shift @param;
 	}
-	if(length($priority) > 0)
-	{
-		$priority = ",\"priority\":$priority";
-	}
+    $priority = ",\"priority\":$priority";
 	
 	my $remote_ip = $hash->{IP};
 	my $remote_port = $hash->{PORT};
-	my ($socket,$client_socket);
+	my $socket;
 	my $data;
 	my $recv_data;
 	my $state;
 	
-	if ($command eq "?")
-	{
-		return join(" ", map { "$_:$Hyperion_sets{$_}" } keys %Hyperion_sets);
-	}
-	if($command eq "loadEffects")
+	if($command eq "loadEffects" or $command eq "?")
 	{
 		my $effectList = AttrVal($name, "effects", "noArg");
 		
 		if(length($effectList) > 0)
 		{
+            $effectList =~ s/ /_/g;
 			$Hyperion_sets{'effect_g'} = $effectList;
 		}
-		return undef;
+		return join(" ", map { "$_:$Hyperion_sets{$_}" } keys %Hyperion_sets);
 	}
-
-	$socket = new IO::Socket::INET (
-	PeerHost => $remote_ip,
-	PeerPort => $remote_port,
-	Proto => 'tcp',
-	); 
-
-	if (!$socket) { 
-		Log3 $name, 3, "$name: ERROR. Can't open socket to $remote_ip $remote_port";
-		$hash->{STATE} = "ERROR. Can't open socket to $remote_ip $remote_port";
-		$hash->{last_command} = "ERROR. Can't open socket to $remote_ip $remote_port";
-		return undef;
-	};
-	
-	if($command eq "color" or $command eq "color_g")
+	elsif($command eq "color" or $command eq "color_g")
 	{
 		my( $r, $g, $b ) = Color::hex2rgb($value);
 		$data = "{\"color\":[$r,$g,$b],\"command\":\"color\"$priority$duration}";
@@ -210,7 +159,7 @@ sub Hyperion_Set($@)
 	}
 	elsif($command eq "effect" or $command eq "effect_g")
 	{
-		$value =~ s/_/ /;
+		$value =~ s/_/ /g;
 		$data = "{\"effect\":{\"name\":\"$value\"},\"command\":\"effect\"$priority$duration}";
 		Log3 $name, 4, "$name: set effect: '$data'";
 		$state = "Effect $value";
@@ -223,8 +172,21 @@ sub Hyperion_Set($@)
 	}
 	else
 	{
-		Log3 $name, 4, "$name: set $command to '$value'";
+		return "Unknown argument $command for $name, choose one of " . join(", ", sort keys %Hyperion_sets);
 	}
+
+	$socket = new IO::Socket::INET (
+        PeerHost => $remote_ip,
+        PeerPort => $remote_port,
+        Proto => 'tcp',
+	); 
+
+	if (!$socket) { 
+		Log3 $name, 3, "$name: ERROR. Can't open socket to $remote_ip $remote_port";
+		$hash->{STATE} = "ERROR. Can't open socket to $remote_ip $remote_port";
+		$hash->{last_command} = "ERROR. Can't open socket to $remote_ip $remote_port";
+		return undef;
+	};
 	
 	$socket->send("$data\n");
 	$socket->recv($recv_data,1024);
@@ -250,17 +212,17 @@ sub Hyperion_Attr(@)
 	my ($cmd,$name,$attr_name,$attr_value) = @_;
 	if($cmd eq "set")
 	{
-        if($attr_name eq "priority")
+        if($attr_name eq "priority" or $attr_name eq "duration")
 		{
 			if($attr_value !~ /^[0-9]{1,}$/)
 			{
-			    my $err = "Invalid argument $attr_value to $attr_name. Must be a number.";
-			    Log3 $name, 3, "Hyperion: ".$err;
+			    my $err = "Invalid value ($attr_value) for attribute $attr_name. Must be a number.";
 			    return $err;
 			}
 		} 
 		elsif($attr_name eq "effects")
 		{
+            $attr_value =~ s/ /_/g;
 			$Hyperion_sets{'effect_g'} = $attr_value;		
 		}
 	}
