@@ -14,6 +14,7 @@
 #                       added error handling for unsupported commands
 #                       optimized some code
 #                       removed duplicated and unnecessary code
+# V 0.30 2016-02-25  -  added readings
 #
 #####################################################################################
 
@@ -89,17 +90,34 @@ sub Hyperion_Get($@)
 
 	if (!$socket) { 
 		Log3 $name, 3, "$name: ERROR. Can't open socket to $remote_ip $remote_port";
-		$hash->{STATE} = "ERROR. Can't open socket to $remote_ip $remote_port";
-		$hash->{last_command} = "ERROR. Can't open socket to $remote_ip $remote_port";
+        readingsBeginUpdate($hash);
+        readingsBulkUpdate($hash,"last_result","Can't open socket to $remote_ip $remote_port");
+        readingsBulkUpdate($hash,"last_command","{\"command\":\"serverinfo\"}");
+        readingsBulkUpdate($hash,"state","ERROR",1);
+        readingsEndUpdate($hash, 0);
 		return undef;
 	}
 	
-	$hash->{last_command} = "{\"command\":\"serverinfo\"}";
 	$socket->send("{\"command\":\"serverinfo\"}\n");
 	$data = <$socket>;
 	$socket->close();
-    $decoded_json = JSON->new->decode($data);
-	$attr{$name}{"effects"} = join(",", map { "$_->{name}"} @{ $decoded_json->{info}->{effects}});
+    if (index($data, "\"success\":false") == -1)
+    {
+        $decoded_json = JSON->new->decode($data);
+        $attr{$name}{"effects"} = join(",", map { "$_->{name}"} @{ $decoded_json->{info}->{effects}});
+        readingsBeginUpdate($hash);
+        readingsBulkUpdate($hash,"last_command","{\"command\":\"serverinfo\"}");
+        readingsBulkUpdate($hash,"state","success");
+        readingsEndUpdate($hash, 0);
+    }
+    else
+    {
+        readingsBeginUpdate($hash);
+        readingsBulkUpdate($hash,"last_result","$data");
+        readingsBulkUpdate($hash,"last_command","{\"command\":\"serverinfo\"}");
+        readingsBulkUpdate($hash,"state","ERROR",1);
+        readingsEndUpdate($hash, 0);
+    }
     
 	return undef;
 }
@@ -115,13 +133,15 @@ sub Hyperion_Set($@)
 	my $name = shift @param;
 	my $command = shift @param;
 	my $value = shift @param;
-	my $duration = AttrVal($name, "duration", "");
+	my $duration = AttrVal($name, "duration", "0");
+    my $secounds = 0;
 	if ($count >= 4)
 	{
 		$duration = shift @param;
 	}
-	if(length($duration) > 0)
+	if($duration > 0)
 	{
+        $secounds = $duration;
 		$duration = ",\"duration\":".$duration."000";
 	}
     
@@ -130,7 +150,6 @@ sub Hyperion_Set($@)
 	{
 		$priority = shift @param;
 	}
-    $priority = ",\"priority\":$priority";
 	
 	my $remote_ip = $hash->{IP};
 	my $remote_port = $hash->{PORT};
@@ -141,6 +160,11 @@ sub Hyperion_Set($@)
 	
 	if($command eq "loadEffects" or $command eq "?")
 	{
+        if(length($hash->{last_command}) > 0)
+        {
+            delete $hash->{last_command};
+        }
+    
 		my $effectList = AttrVal($name, "effects", "noArg");
 		
 		if(length($effectList) > 0)
@@ -153,19 +177,22 @@ sub Hyperion_Set($@)
 	elsif($command eq "color" or $command eq "color_g")
 	{
 		my( $r, $g, $b ) = Color::hex2rgb($value);
-		$data = "{\"color\":[$r,$g,$b],\"command\":\"color\"$priority$duration}";
+        $command = "color";
+		$data = "{\"color\":[$r,$g,$b],\"command\":\"$command\",\"priority\":$priority$duration}";
 		Log3 $name, 4, "$name: set color: '$data'";
 		$state = "Color $value";
 	}
 	elsif($command eq "effect" or $command eq "effect_g")
 	{
 		$value =~ s/_/ /g;
-		$data = "{\"effect\":{\"name\":\"$value\"},\"command\":\"effect\"$priority$duration}";
+        $command = "effect";
+		$data = "{\"effect\":{\"name\":\"$value\"},\"command\":\"$command\",\"priority\":$priority$duration}";
 		Log3 $name, 4, "$name: set effect: '$data'";
 		$state = "Effect $value";
 	}
 	elsif($command eq "clear")
 	{
+        $secounds = 0;
 		$data = "{\"command\":\"clearall\"}";
 		Log3 $name, 4, "$name: clearall";
 		$state = "Cleared";
@@ -183,8 +210,15 @@ sub Hyperion_Set($@)
 
 	if (!$socket) { 
 		Log3 $name, 3, "$name: ERROR. Can't open socket to $remote_ip $remote_port";
-		$hash->{STATE} = "ERROR. Can't open socket to $remote_ip $remote_port";
-		$hash->{last_command} = "ERROR. Can't open socket to $remote_ip $remote_port";
+        readingsBeginUpdate($hash);
+        readingsBulkUpdate($hash,"last_result","Can't open socket to $remote_ip $remote_port");
+        readingsBulkUpdate($hash,"last_command",$data);
+        readingsBulkUpdate($hash,"last_type",$command);
+        readingsBulkUpdate($hash,"last_value",$value);
+        readingsBulkUpdate($hash,"last_duration", $secounds);
+        readingsBulkUpdate($hash,"last_priority",$priority);
+        readingsBulkUpdate($hash,"state","ERROR",1);
+        readingsEndUpdate($hash, 0);
 		return undef;
 	};
 	
@@ -192,18 +226,46 @@ sub Hyperion_Set($@)
 	$socket->recv($recv_data,1024);
 	
 	$recv_data =~ s/\s+$//;
+    readingsBeginUpdate($hash);
+    readingsBulkUpdate($hash,"last_result",$recv_data);
+    readingsBulkUpdate($hash,"last_command",$data);
+    readingsBulkUpdate($hash,"last_type",$command);
+    readingsBulkUpdate($hash,"last_value",$value);
+    readingsBulkUpdate($hash,"last_duration", $secounds);
+    readingsBulkUpdate($hash,"last_priority",$priority);
 	if($recv_data eq "{\"success\":true}")
 	{
-		$hash->{STATE} = $state;
+        if($command eq "clear")
+        {
+            readingsBulkUpdate($hash,"state","success",1);  
+        }
+        elsif($secounds > 0)
+        {
+            readingsBulkUpdate($hash,"state","started",1);
+            InternalTimer(gettimeofday()+$secounds, "Hyperion_GetUpdate", $hash, 0);
+        }
+        else
+        {
+            readingsBulkUpdate($hash,"state","started infinity",1);
+        }
 	}
 	else
 	{
-		$hash->{STATE} = "ERROR: '$recv_data' | $data";
+        readingsBulkUpdate($hash,"state","ERROR",1);
 	}
+    readingsEndUpdate($hash, 0);
 	
-	$hash->{last_command} = $data;
 	$socket->close();
 	
+	return undef;
+}
+
+sub Hyperion_GetUpdate(@)
+{
+    my ($hash) = @_;
+    
+    readingsSingleUpdate($hash,"state","finished",1);
+	Log3 "test", 3, "test";
 	return undef;
 }
 
@@ -297,6 +359,37 @@ sub Hyperion_Attr(@)
         standard priority, if not set it's 500
     </li>
   </ul>
+  <a name="Hyperion_Read"></a>
+  <b>Readings</b>
+  <ul>
+    <li><a name="state">state</a><br>
+        shows the state of the last_command:
+        <ul>
+            <li>success: when get command or set clear successful</li>
+            <li>started infinity: when set effect or color without duration</li>
+            <li>started: when set effect or color with duration</li>
+            <li>finished: when set effect or color is finished after duration</li>
+        </ul>
+    </li>
+    <li><a name="last_result">last_result</a><br>
+        shows the last answer of hyperion
+    </li>
+    <li><a name="last_command">last_command</a><br>
+        shows the full last sended command
+    </li>
+    <li><a name="last_type">last_type</a><br>
+        shows the last sended type
+    </li>
+    <li><a name="last_value">last_value</a><br>
+        shows the last sended type parameter
+    </li>
+    <li><a name="last_duration">last_duration</a><br>
+        shows the last duration
+    </li>
+    <li><a name="last_priority">last_priority</a><br>
+        shows the last priority
+    </li>
+  </ul>
 </ul>
 
 =end html
@@ -364,6 +457,37 @@ sub Hyperion_Attr(@)
     </li>
     <li><a name="priority">priority</a><br>
         Standard Priorität, wenn nicht gesetzt ist die Priorität 500
+    </li>
+  </ul>
+  <a name="Hyperion_Read"></a>
+  <b>Readings</b>
+  <ul>
+    <li><a name="state">state</a><br>
+        zeigt den Status von last_command:
+        <ul>
+            <li>success: wenn get oder set clear erfoglreich</li>
+            <li>started infinity: wenn set effect oder color ohne Dauer gestartet</li>
+            <li>started: wenn set effect oder color mit Dauer gestartet</li>
+            <li>finished: wenn set effect oder color mit Dauer beendet</li>
+        </ul>
+    </li>
+    <li><a name="last_result">last_result</a><br>
+        zeigt die letzte Antwort von hyperion
+    </li>
+    <li><a name="last_command">last_command</a><br>
+        zeigt den zuletzt gesendeten Befehl 
+    </li>
+    <li><a name="last_type">last_type</a><br>
+        zeigt den zuletzt gesendeten Typ 
+    </li>
+    <li><a name="last_value">last_value</a><br>
+        zeigt den zuletzt gesendeten Typ-Parameter
+    </li>
+    <li><a name="last_duration">last_duration</a><br>
+        zeigt den zuletzt gesendete Dauer
+    </li>
+    <li><a name="last_priority">last_priority</a><br>
+        zeigt den zuletzt gesendete Priorität
     </li>
   </ul>
 </ul>
