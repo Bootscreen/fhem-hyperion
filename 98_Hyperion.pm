@@ -15,6 +15,8 @@
 #                       optimized some code
 #                       removed duplicated and unnecessary code
 # V 0.30 2016-02-25  -  added readings
+# V 0.40 2016-03-06  -  added off command (testing)
+#                       fixed delete old hash->last_command
 #
 #####################################################################################
 
@@ -27,7 +29,7 @@ use IO::Socket;
 use IO::Socket::INET;
 use JSON;
 
-my %Hyperion_sets = ( "color" => "textField", "color_g" => "colorpicker,RGB", "effect" => "textField", "effect_g" => "noArg", "clear" => "noArg", "loadEffects" => "noArg");
+my %Hyperion_sets = ( "color" => "textField", "color_g" => "colorpicker,RGB", "effect" => "textField", "effect_g" => "noArg", "clear" => "noArg", "loadEffects" => "noArg", "off" => "noArg");
 my %Hyperion_gets = ( "effectList:noArg" => "");
 
 sub Hyperion_Initialize($)
@@ -160,7 +162,7 @@ sub Hyperion_Set($@)
 	
 	if($command eq "loadEffects" or $command eq "?")
 	{
-        if(length($hash->{last_command}) > 0)
+        if(exists($hash->{last_command}))
         {
             delete $hash->{last_command};
         }
@@ -196,6 +198,13 @@ sub Hyperion_Set($@)
 		$data = "{\"command\":\"clearall\"}";
 		Log3 $name, 4, "$name: clearall";
 		$state = "Cleared";
+	}
+	elsif($command eq "off")
+	{
+        $command = "off";
+		$data = "{\"color\":[0,0,0],\"command\":\"color\",\"priority\":$priority$duration}";
+		Log3 $name, 4, "$name: set off";
+		$state = "Off";
 	}
 	else
 	{
@@ -335,6 +344,10 @@ sub Hyperion_Attr(@)
       <a name="loadEffects">loadEffects</a><br>
       if effect_g has no dropdown you can manualy load the dropdown from the effects attribute
     </li>
+    <li>
+      <a name="off">off</a><br>
+      sets the light off while the color is black
+    </li>
   </ul>  
   <br>
   <a name="Hyperion_get"></a>
@@ -434,6 +447,10 @@ sub Hyperion_Attr(@)
     <li>
       <a name="loadEffects">loadEffects</a><br>
       Lädt die Effekte aus dem Attribut effects in die Dropdown Liste für effect_g
+    </li>
+    <li>
+      <a name="off">off</a><br>
+      Schaltet das Licht aus indem es die Farbe auf Scharz setzt
     </li>
   </ul>  
   <br>
