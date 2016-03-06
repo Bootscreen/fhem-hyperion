@@ -7,16 +7,18 @@
 #
 # Changelog
 #
-# V 0.10 2016-02-23  -  initial beta version
-# V 0.11 2016-02-23  -  fixed commandref formating
-# V 0.20 2016-02-24  -  fixed effect_g not loaded after reload
-#                       changed attribute effects, no underscore required anymore
-#                       added error handling for unsupported commands
-#                       optimized some code
-#                       removed duplicated and unnecessary code
-# V 0.30 2016-02-25  -  added readings
-# V 0.40 2016-03-06  -  added off command (testing)
-#                       fixed delete old hash->last_command
+# V 0.1.0 2016-02-23  -  initial beta version
+# V 0.1.1 2016-02-23  -  fixed commandref formating
+# V 0.2.0 2016-02-24  -  fixed effect_g not loaded after reload
+#                        changed attribute effects, no underscore required anymore
+#                        added error handling for unsupported commands
+#                        optimized some code
+#                        removed duplicated and unnecessary code
+# V 0.3.0 2016-02-25  -  added readings
+# V 0.4.0 2016-03-06  -  added off command (testing)
+#                        fixed delete old hash->last_command
+# V 0.4.1 2016-03-06  -  fixed concatenation of duration to priority
+#                        changed version numbers
 #
 #####################################################################################
 
@@ -135,13 +137,13 @@ sub Hyperion_Set($@)
 	my $name = shift @param;
 	my $command = shift @param;
 	my $value = shift @param;
-	my $duration = AttrVal($name, "duration", "0");
+	my $duration = AttrVal($name, "duration", "");
     my $secounds = 0;
 	if ($count >= 4)
 	{
 		$duration = shift @param;
 	}
-	if($duration > 0)
+	if(length($duration) > 0 && $duration > 0)
 	{
         $secounds = $duration;
 		$duration = ",\"duration\":".$duration."000";
